@@ -138,7 +138,19 @@ public class CommonExtensionLayer implements IExtensionLayer {
 
     @Override
     public void register(ServiceInstance instance) {
-        // 暂时放这里，需要注册时才初始化，spring cloud 可以使用原生的 register
+        //需要注册时才初始化，spring cloud 可以使用原生的 register
+        initRegistry();
+        Map<String, String> instanceMetadata = instance.getAllMetadata();
+        Map<String, String> registerMetadata = serviceRegistryMetadata.getRegisterMetadataMap();
+        if (instanceMetadata == null) {
+            instance.setAllMetadata(registerMetadata);
+        } else {
+            instanceMetadata.putAll(registerMetadata);
+        }
+        serviceRegistry.register(instance);
+    }
+
+    private void initRegistry() {
         if (serviceRegistry == null) {
             synchronized (this) {
                 if (serviceRegistry == null) {
@@ -150,16 +162,6 @@ public class CommonExtensionLayer implements IExtensionLayer {
                 }
             }
         }
-
-        Map<String, String> instanceMetadata = instance.getAllMetadata();
-        Map<String, String> registerMetadata = serviceRegistryMetadata.getRegisterMetadataMap();
-        if (instanceMetadata == null) {
-            instance.setAllMetadata(registerMetadata);
-        } else {
-            instanceMetadata.putAll(registerMetadata);
-        }
-
-        serviceRegistry.register(instance);
     }
 
     @Override
@@ -311,8 +313,8 @@ public class CommonExtensionLayer implements IExtensionLayer {
     @Override
     public void afterClientInvoke(Request request, Response response, RpcContext rpcContext) {
         long duration = TimeUtil.currentTimeMillis() - rpcContext.getTracingContext().getStartTime();
-
-        ErrorStatus statusCode = ErrorStatus.OK;
+        // actual status from response
+        ErrorStatus statusCode = response.getErrorStatus() != null ? response.getErrorStatus() : ErrorStatus.OK;
 
         if (response.getError() != null) {
             circuitBreakerService.handleFailedServiceRequest(request, duration, response.getError());
